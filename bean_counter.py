@@ -1,6 +1,8 @@
 import tiktoken
 import sys
+import os
 from transformers import AutoTokenizer
+from tqdm import tqdm
 
 TOKENIZERS = {
     1: ("cl100k_base", "GPT-4 (default)", "tiktoken"),
@@ -29,42 +31,69 @@ def get_tokenizer_choice():
             print("Please enter a valid number.")
 
 def num_tokens_from_string(string: str, encoding_name: str, tokenizer_type: str) -> int:
-    if tokenizer_type == "tiktoken":
-        encoding = tiktoken.get_encoding(encoding_name)
-        return len(encoding.encode(string))
-    elif tokenizer_type == "huggingface":
-        tokenizer = AutoTokenizer.from_pretrained(encoding_name)
-        return len(tokenizer.encode(string))
+    try:
+        if tokenizer_type == "tiktoken":
+            encoding = tiktoken.get_encoding(encoding_name)
+            return len(encoding.encode(string))
+        elif tokenizer_type == "huggingface":
+            tokenizer = AutoTokenizer.from_pretrained(encoding_name)
+            return len(tokenizer.encode(string))
+    except Exception as e:
+        print(f"Error loading tokenizer: {str(e)}")
+        sys.exit(1)
 
-def analyze_file(file_path: str, encoding_name: str, tokenizer_type: str) -> None:
+def save_results(results: str, output_file: str) -> None:
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write(results)
+    print(f"Results saved to {output_file}")
+
+def analyze_file(file_path: str, encoding_name: str, tokenizer_type: str) -> str:
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             content = file.read()
         
+        print("Tokenizing...")
         token_count = num_tokens_from_string(content, encoding_name, tokenizer_type)
+        
+        print("Analyzing...")
         word_count = len(content.split())
         char_count = len(content)
         
         avg_tokens_per_word = token_count / word_count if word_count > 0 else 0
         avg_chars_per_token = char_count / token_count if token_count > 0 else 0
 
-        print(f"\nFile: {file_path}")
-        print(f"Tokenizer: {encoding_name}")
-        print(f"Total tokens: {token_count}")
-        print(f"Total words: {word_count}")
-        print(f"Total characters: {char_count}")
-        print(f"Average tokens per word: {avg_tokens_per_word:.2f}")
-        print(f"Average characters per token: {avg_chars_per_token:.2f}")
+        result = f"\nFile: {file_path}\n"
+        result += f"Tokenizer: {encoding_name}\n"
+        result += f"Total tokens: {token_count}\n"
+        result += f"Total words: {word_count}\n"
+        result += f"Total characters: {char_count}\n"
+        result += f"Average tokens per word: {avg_tokens_per_word:.2f}\n"
+        result += f"Average characters per token: {avg_chars_per_token:.2f}\n"
+        
+        print(result)
+        return result
         
     except FileNotFoundError:
-        print(f"Error: File '{file_path}' not found.")
+        return f"Error: File '{file_path}' not found.\n"
     except Exception as e:
-        print(f"An error occurred: {str(e)}")
+        return f"An error occurred: {str(e)}\n"
+
+def analyze_files(file_paths: list, encoding_name: str, tokenizer_type: str) -> str:
+    results = ""
+    for file_path in file_paths:
+        results += analyze_file(file_path, encoding_name, tokenizer_type)
+        results += "\n" + "-"*50 + "\n"
+    return results
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python script.py <file_path>")
+    if len(sys.argv) < 2:
+        print("Usage: python script.py <file_path1> [file_path2] ...")
     else:
-        file_path = sys.argv[1]
+        file_paths = sys.argv[1:]
         encoding_name, _, tokenizer_type = get_tokenizer_choice()
-        analyze_file(file_path, encoding_name, tokenizer_type)
+        results = analyze_files(file_paths, encoding_name, tokenizer_type)
+        
+        save_option = input("Do you want to save the results to a file? (y/n): ").lower()
+        if save_option == 'y':
+            output_file = input("Enter the output file name: ")
+            save_results(results, output_file)
