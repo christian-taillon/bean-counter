@@ -36,11 +36,12 @@ def num_tokens_from_string(string: str, encoding_name: str, tokenizer_type: str)
             encoding = tiktoken.get_encoding(encoding_name)
             return len(encoding.encode(string))
         elif tokenizer_type == "huggingface":
-            tokenizer = AutoTokenizer.from_pretrained(encoding_name)
+            tokenizer = AutoTokenizer.from_pretrained(encoding_name, use_auth_token=True)
             return len(tokenizer.encode(string))
     except Exception as e:
         print(f"Error loading tokenizer: {str(e)}")
-        sys.exit(1)
+        print("Falling back to character count as an approximation.")
+        return len(string)
 
 def save_results(results: str, output_file: str) -> None:
     with open(output_file, 'w', encoding='utf-8') as f:
@@ -90,7 +91,11 @@ if __name__ == "__main__":
         print("Usage: python script.py <file_path1> [file_path2] ...")
     else:
         file_paths = sys.argv[1:]
-        encoding_name, _, tokenizer_type = get_tokenizer_choice()
+        encoding_name, model_name, tokenizer_type = get_tokenizer_choice()
+        
+        if encoding_name == "meta-llama/Llama-2-7b-hf":
+            print("Note: LLaMA-2 tokenizer requires special access. If you don't have access, the script will fall back to character count.")
+        
         results = analyze_files(file_paths, encoding_name, tokenizer_type)
         
         save_option = input("Do you want to save the results to a file? (y/n): ").lower()
